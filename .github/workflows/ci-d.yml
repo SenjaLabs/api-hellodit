@@ -1,0 +1,46 @@
+name: CI 
+on: 
+  push: 
+    branches: ["main"]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout
+      
+      - name: Set up Go
+        uses: actions/setup-go@v3
+        with:
+          go-version: 1.19
+      
+      - name: Build
+        run: go build -v ./...
+
+      - name: Connect to DockerHub 
+        uses: docker/login-action@v2
+        with: 
+          username: ${{secret.docker_username}}
+          password: ${{secret.docker_password}}
+      
+      - name: Build and Push 
+        id: docker_build
+        uses: docker/build-push-action@v3
+        with:
+          push: true
+          tags: hellodit/api-dev:latest
+      
+      - name: Deploy to VPS 
+        uses: appleboy/ssh-action@master
+        with: 
+          host: ${{secret.server_address}}
+          username: ${{secret.server_username}}
+          key: ${{secret.server_sshkey}}
+          port: 22
+          script: |
+            cd  ~/app 
+            git pull origin main 
+            docker compose pull 
+            docker compose down 
+            docker compose up -d 
+            docker image prune
